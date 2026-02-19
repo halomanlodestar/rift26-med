@@ -17,6 +17,7 @@ export class AnalyzeController {
 
             const file = req.file;
             const drug = req.body.drug;
+            const mode = (req.body.mode as 'patient' | 'expert') || 'patient';
 
             if (!file) {
                 res.status(400).json({ error: 'No VCF file provided.' });
@@ -52,7 +53,8 @@ export class AnalyzeController {
             const rsIds = variants.map(v => v.rsId).filter(id => !!id);
             const signature = cacheService.generateSignature(rsIds);
 
-            const cacheKey = `${signature}:${drug.toUpperCase()}`;
+            // Cache Key includes MODE to separate patient/expert explanations
+            const cacheKey = `${signature}:${drug.toUpperCase()}:${mode}`;
 
             // 4. Check Cache (Level 1)
             const cachedResult = cacheService.get(cacheKey);
@@ -62,7 +64,7 @@ export class AnalyzeController {
                 res.json({
                     ...cachedResult,
                     timestamp: new Date().toISOString(),
-                    source: 'cache' // Debug info
+                    cache_status: 'HIT'
                 });
                 return;
             }
@@ -73,7 +75,7 @@ export class AnalyzeController {
             // 6. Build Context & Call LLM
             let llmExplanation = 'Explanation temporarily unavailable.';
             try {
-                const context = contextService.buildContext(drug, result);
+                const context = contextService.buildContext(drug, result, mode);
                 llmExplanation = await llmService.generateExplanation(context);
             } catch (err) {
                 console.error('LLM aggregation error:', err);
@@ -85,7 +87,11 @@ export class AnalyzeController {
                 patient_id: randomUUID(), // Generate new ID for session
                 drug: drug.toUpperCase(),
                 timestamp: new Date().toISOString(),
-                risk_assessment: result.risk_label,
+                mode: mode,
+                risk_assessment: {
+                    level: result.risk_label,
+                    confidence_score: result.confidence_score || 0.5
+                },
                 pharmacogenomic_profile: {
                     gene: result.gene,
                     phenotype: result.phenotype,
@@ -97,11 +103,21 @@ export class AnalyzeController {
                 llm_generated_explanation: {
                     summary: llmExplanation
                 },
+                explainability_tree: {
+                    drug: drug.toUpperCase(),
+                    gene: result.gene,
+                    variant: result.detected_variant || 'None',
+                    phenotype: result.phenotype,
+                    risk: result.risk_label,
+                    recommendation: result.recommendation
+                },
+                genomic_signature_id: signature,
                 quality_metrics: {
                     // Placeholder metrics
                     vcf_quality: 'PASS',
                     genotype_completeness: variants.length > 0 ? 'High' : 'Low'
-                }
+                },
+                cache_status: 'MISS'
             };
 
             // 8. Store in Cache

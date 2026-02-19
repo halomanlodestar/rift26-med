@@ -7,7 +7,8 @@ export class ContextService {
      */
     public buildContext(
         drug: string,
-        result: Recommendation
+        result: Recommendation,
+        mode: 'patient' | 'expert'
     ): ClinicalContext {
         return {
             drug: drug.toUpperCase(),
@@ -16,6 +17,7 @@ export class ContextService {
             variants: result.detected_variant || 'None detected',
             recommendation: result.recommendation || 'Standard dosing',
             risk_level: result.risk_label || 'Low',
+            mode: mode
         };
     }
 }

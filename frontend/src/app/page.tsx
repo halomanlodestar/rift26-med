@@ -8,7 +8,11 @@ interface AnalysisResult {
   patient_id: string;
   drug: string;
   timestamp: string;
-  risk_assessment: string;
+  mode: 'patient' | 'expert';
+  risk_assessment: {
+    level: string;
+    confidence_score: number;
+  };
   pharmacogenomic_profile: {
     gene: string;
     phenotype: string;
@@ -20,6 +24,16 @@ interface AnalysisResult {
   llm_generated_explanation: {
     summary: string;
   };
+  explainability_tree: {
+    drug: string;
+    gene: string;
+    variant: string;
+    phenotype: string;
+    risk: string;
+    recommendation: string;
+  };
+  genomic_signature_id: string;
+  cache_status: 'HIT' | 'MISS';
   quality_metrics: {
     vcf_quality: string;
     genotype_completeness: string;
@@ -52,6 +66,7 @@ const getRiskColor = (risk: string) => {
 
 export default function Home() {
   const [selectedDrug, setSelectedDrug] = useState<string>(DRUG_OPTIONS[0]);
+  const [mode, setMode] = useState<'patient' | 'expert'>('patient');
   const [file, setFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
@@ -78,6 +93,7 @@ export default function Home() {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("drug", selectedDrug);
+      formData.append("mode", mode);
 
       const response = await fetch("/api/analyze", {
         method: "POST",
@@ -145,6 +161,33 @@ export default function Home() {
               Run Analysis
             </h2>
             <form onSubmit={handleSubmit} className="space-y-6">
+
+              {/* Mode Toggle */}
+              <div className="flex justify-center mb-6">
+                <div className="bg-gray-100 p-1 rounded-lg inline-flex">
+                  <button
+                    type="button"
+                    onClick={() => setMode('patient')}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${mode === 'patient'
+                        ? 'bg-white text-blue-600 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                  >
+                    Patient Mode
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMode('expert')}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${mode === 'expert'
+                        ? 'bg-white text-blue-600 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                  >
+                    Expert Mode
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Select Drug
@@ -259,10 +302,20 @@ export default function Home() {
         {/* Results Section */}
         {result && (
           <div className="space-y-6 animate-fade-in-up">
+
+            {/* Header with Signature ID & Cache Status */}
+            <div className="flex justify-between items-center text-sm text-gray-500 px-2">
+              <span>Genomic Signature: <span className="font-mono text-gray-700">{result.genomic_signature_id.substring(0, 16)}...</span></span>
+              <span className={`px-2 py-1 rounded text-xs font-bold ${result.cache_status === 'HIT' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+                }`}>
+                Cache: {result.cache_status}
+              </span>
+            </div>
+
             {/* Risk Assessment Card */}
             <div
               className={`rounded-xl border-l-8 p-6 shadow-md bg-white ${getRiskColor(
-                result.risk_assessment
+                result.risk_assessment.level
               )}`}
             >
               <div className="flex justify-between items-start">
@@ -271,11 +324,19 @@ export default function Home() {
                     Risk Assessment
                   </h3>
                   <p className="mt-2 text-3xl font-bold">
-                    {result.risk_assessment}
+                    {result.risk_assessment.level}
                   </p>
                   <p className="mt-1 text-lg font-medium opacity-90">
                     {result.drug}
                   </p>
+                  <div className="mt-3 flex items-center">
+                    <div className="w-full bg-gray-200 rounded-full h-2.5 w-32 mr-2">
+                      <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${result.risk_assessment.confidence_score * 100}%` }}></div>
+                    </div>
+                    <span className="text-sm opacity-75">
+                      {Math.round(result.risk_assessment.confidence_score * 100)}% Confidence
+                    </span>
+                  </div>
                 </div>
                 <div className="text-right">
                   <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-white/50">
@@ -287,15 +348,42 @@ export default function Home() {
 
             {/* AI Explanation */}
             <div className="bg-white shadow-lg rounded-xl overflow-hidden border border-gray-100">
-              <div className="px-6 py-4 bg-gradient-to-r from-purple-50 to-white border-b border-gray-100">
+              <div className="px-6 py-4 bg-gradient-to-r from-purple-50 to-white border-b border-gray-100 flex justify-between items-center">
                 <h3 className="text-lg font-semibold text-purple-900 flex items-center">
                   <span className="mr-2">✨</span> Genomic Explanation
                 </h3>
+                <span className="text-xs font-medium text-purple-600 bg-purple-100 px-2 py-1 rounded uppercase">
+                  {result.mode} Mode
+                </span>
               </div>
               <div className="p-6">
-                <p className="text-gray-700 leading-relaxed text-base">
+                <p className="text-gray-700 leading-relaxed text-base whitespace-pre-line">
                   {result.llm_generated_explanation.summary}
                 </p>
+              </div>
+            </div>
+
+            {/* Explainability Tree */}
+            <div className="bg-white shadow-md rounded-xl p-6 border border-gray-100">
+              <h3 className="text-gray-900 font-semibold mb-4 border-b pb-2">
+                Explainability Tree
+              </h3>
+              <div className="font-mono text-sm bg-gray-50 p-4 rounded-lg overflow-x-auto">
+                <ul className="list-none space-y-2">
+                  <li><span className="text-blue-600 font-bold">DRUG:</span> {result.explainability_tree.drug}</li>
+                  <li className="pl-4 border-l-2 border-gray-300 ml-1">
+                    <span className="text-purple-600 font-bold">└── GENE:</span> {result.explainability_tree.gene}
+                  </li>
+                  <li className="pl-8 border-l-2 border-gray-300 ml-1">
+                    <span className="text-indigo-600 font-bold">└── VARIANT:</span> {result.explainability_tree.variant}
+                  </li>
+                  <li className="pl-12 border-l-2 border-gray-300 ml-1">
+                    <span className="text-pink-600 font-bold">└── PHENOTYPE:</span> {result.explainability_tree.phenotype}
+                  </li>
+                  <li className="pl-16 border-l-2 border-gray-300 ml-1">
+                    <span className="text-red-600 font-bold">└── RISK:</span> {result.explainability_tree.risk}
+                  </li>
+                </ul>
               </div>
             </div>
 

@@ -25,6 +25,7 @@ export interface Recommendation {
     phenotype?: string;
     gene?: string;
     detected_variant?: string;
+    confidence_score?: number;
 }
 
 export class RuleEngineService {
@@ -34,7 +35,7 @@ export class RuleEngineService {
         const targetGene = DRUG_GENE_MAP[upperDrug];
 
         if (!targetGene) {
-            return this.createUnknown('Drug not supported or mapped to a gene.');
+            return this.createUnknown('Drug not supported or mapped to a gene.', 0.1);
         }
 
         // Find if we have any variant for this gene
@@ -74,13 +75,16 @@ export class RuleEngineService {
         }
 
         if (!foundPhenotype) {
-            return this.createUnknown('No pharmacogenomic variants detected for this drug/gene pair.');
+            // If we have variants for the gene but no match -> Limited mapping (0.7)
+            // If we processed gene but found no variants (Wild Type?) -> could be high confidence if complete VCF, but here we say Unknown/No Variance Detected.
+            // Requirement: "If no variant -> 0.2"
+            return this.createUnknown('No pharmacogenomic variants detected for this drug/gene pair.', 0.2);
         }
 
         // Look up rule
         const drugRules = PHENOTYPE_RULES[upperDrug];
         if (!drugRules) {
-            return this.createUnknown('No rules defined for this drug.');
+            return this.createUnknown('No rules defined for this drug.', 0.1);
         }
 
         const rule = drugRules[foundPhenotype];
@@ -91,7 +95,8 @@ export class RuleEngineService {
                 recommendation: 'Phenotype detected but no specific rule found.',
                 phenotype: foundPhenotype,
                 gene: targetGene,
-                detected_variant: matchedVariantStr
+                detected_variant: matchedVariantStr,
+                confidence_score: 0.7 // Variant detected but limited mapping
             };
         }
 
@@ -99,16 +104,18 @@ export class RuleEngineService {
             ...rule,
             phenotype: foundPhenotype,
             gene: targetGene,
-            detected_variant: matchedVariantStr
+            detected_variant: matchedVariantStr,
+            confidence_score: 0.9 // Variant detected and phenotype mapped
         };
     }
 
-    private createUnknown(reason: string): Recommendation {
+    private createUnknown(reason: string, score: number): Recommendation {
         return {
             risk_label: 'Unknown',
             severity: 'low',
             recommendation: reason,
-            phenotype: 'Unknown'
+            phenotype: 'Unknown',
+            confidence_score: score
         };
     }
 }

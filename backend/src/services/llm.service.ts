@@ -8,6 +8,7 @@ export interface ClinicalContext {
     variants: string;
     recommendation: string;
     risk_level: string;
+    mode: 'patient' | 'expert';
 }
 
 const groq = new Groq({
@@ -58,16 +59,36 @@ export class LlmService {
     }
 
     private buildPrompt(context: ClinicalContext): string {
-        return `
+        const baseContext = `
 Drug: ${context.drug}
 Gene: ${context.gene}
 Phenotype: ${context.phenotype}
 Variants: ${context.variants}
 Risk Level: ${context.risk_level}
 Clinical Recommendation: ${context.recommendation}
-
-Please provide a concise biological explanation for this result.
 `;
+
+        if (context.mode === 'expert') {
+            return `
+${baseContext}
+
+Please provide a highly technical clinical explanation.
+- Include specific rsIDs and star alleles if available.
+- Describe the enzyme activity impact and metabolic pathway.
+- Use precise clinical terminology.
+- Explain the pharmacokinetics behind the risk match.
+`;
+        } else {
+            return `
+${baseContext}
+
+Please provide a simple, patient-friendly explanation.
+- Avoid heavy jargon.
+- Explain in simple 3-4 sentences.
+- Do not focus on rsID technical details.
+- Focus on what this means for their treatment safety.
+`;
+        }
     }
 }
 
