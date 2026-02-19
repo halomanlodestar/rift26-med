@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, FormEvent, useRef } from "react";
-import Image from "next/image"; // Though not strictly used yet, good for future
+import Image from "next/image";
 import {
   Upload,
   FileText,
@@ -162,7 +162,6 @@ export default function Home() {
   const copyToClipboard = () => {
     if (result) {
       navigator.clipboard.writeText(JSON.stringify(result, null, 2));
-      // Could add a toast notification here
       alert("Copied to clipboard!");
     }
   };
@@ -183,7 +182,7 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-background font-sans selection:bg-primary/10">
+    <div className="min-h-screen bg-background font-sans selection:bg-primary/10 pb-20">
       <TooltipProvider>
         {/* 1. HEADER BAR */}
         <header className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -215,13 +214,13 @@ export default function Home() {
         <main className="container max-w-5xl mx-auto py-10 px-4 md:px-6 space-y-12">
 
           {/* 2. INPUT CARD */}
-          <section className="flex justify-center animate-fade-in-up">
-            <Card className="w-full max-w-2xl border-none shadow-xl bg-card/50 backdrop-blur-sm ring-1 ring-black/5 dark:ring-white/10">
+          <section className="flex justify-center animate-in fade-in slide-in-from-bottom-2 duration-500">
+            <Card className="w-full max-w-2xl border-none shadow-sm rounded-xl bg-card/50 backdrop-blur-sm ring-1 ring-black/5 dark:ring-white/10">
               <CardHeader className="text-center pb-8 border-b border-border/50">
                 <CardTitle className="text-2xl font-bold">New Analysis</CardTitle>
                 <CardDescription>Select a medication and upload your VCF file to assess pharmacogenomic risk.</CardDescription>
               </CardHeader>
-              <CardContent className="pt-8 space-y-6">
+              <CardContent className="pt-8 space-y-6 p-6">
                 {error && (
                   <Alert variant="destructive" className="animate-pulse">
                     <AlertCircle className="h-4 w-4" />
@@ -302,7 +301,7 @@ export default function Home() {
                 <Button
                   onClick={handleSubmit}
                   disabled={isLoading || !file}
-                  className="w-full py-6 text-base font-semibold shadow-lg shadow-primary/20 transition-all hover:shadow-primary/30"
+                  className="w-full py-6 text-base font-semibold shadow-sm shadow-primary/20 transition-all hover:shadow-primary/30 rounded-lg"
                   size="lg"
                 >
                   {isLoading ? (
@@ -330,13 +329,13 @@ export default function Home() {
           )}
 
           {result && (
-            <div className="space-y-8 animate-fade-in-up">
+            <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
 
-              {/* Top Row: Risk + Confidence */}
-              <div className="grid gap-6 md:grid-cols-12">
+              {/* Row 1: Risk + Confidence */}
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-stretch">
 
                 {/* Risk Card */}
-                <Card className={`md:col-span-7 lg:col-span-8 border-l-8 overflow-hidden shadow-sm hover:shadow-md transition-shadow ${getRiskColor(result.risk_assessment.level)}`}>
+                <Card className={`md:col-span-7 lg:col-span-8 border-l-8 overflow-hidden shadow-sm rounded-xl h-full ${getRiskColor(result.risk_assessment.level)}`}>
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between mb-1">
                       <Badge variant="outline" className="bg-background/50 font-mono text-xs uppercase tracking-wider">
@@ -352,7 +351,7 @@ export default function Home() {
                       Risk Assessment
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="p-6 pt-0">
                     <div className="flex flex-col gap-1">
                       <span className="text-4xl md:text-5xl font-extrabold tracking-tight">
                         {result.risk_assessment.level}
@@ -365,13 +364,13 @@ export default function Home() {
                 </Card>
 
                 {/* Confidence Card */}
-                <Card className="md:col-span-5 lg:col-span-4 flex flex-col justify-center border-none bg-card shadow-sm ring-1 ring-border/50">
+                <Card className="md:col-span-5 lg:col-span-4 flex flex-col justify-center border-none bg-card shadow-sm rounded-xl ring-1 ring-border/50 h-full">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
                       Confidence Score
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4">
+                  <CardContent className="space-y-4 p-6">
                     <div className="flex items-end justify-between">
                       <span className="text-4xl font-bold tabular-nums">
                         {Math.round(result.risk_assessment.confidence_score * 100)}
@@ -381,37 +380,37 @@ export default function Home() {
                     </div>
                     <Progress
                       value={result.risk_assessment.confidence_score * 100}
-                      className="h-3"
+                      className="h-3 w-full"
                       indicatorClassName={getProgressBarColor(result.risk_assessment.level)}
                     />
                   </CardContent>
                 </Card>
               </div>
 
-              {/* Second Row: Clinical + Genomic */}
-              <div className="grid gap-6 md:grid-cols-2">
-                <Card className="border-t-4 border-t-primary shadow-sm">
+              {/* Row 2: Clinical + Genomic */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+                <Card className="border-t-4 border-t-primary shadow-sm rounded-xl w-full h-full">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <FileText className="w-5 h-5 text-primary" />
                       Clinical Recommendation
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="p-6">
                     <p className="text-lg text-foreground leading-relaxed">
                       {result.clinical_recommendation}
                     </p>
                   </CardContent>
                 </Card>
 
-                <Card className="border-t-4 border-t-indigo-500 shadow-sm">
+                <Card className="border-t-4 border-t-indigo-500 shadow-sm rounded-xl w-full h-full">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Dna className="w-5 h-5 text-indigo-500" />
                       Genomic Profile
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="p-6">
                     <div className="space-y-3">
                       <div className="flex justify-between items-center py-2 border-b border-border/50">
                         <span className="text-sm text-muted-foreground">Target Gene</span>
@@ -445,11 +444,13 @@ export default function Home() {
                 </Card>
               </div>
 
-              {/* Third Row: Detailed Tabs */}
-              <Card className="shadow-md border-none ring-1 ring-border/50 bg-card/50">
+              <Separator className="my-2" />
+
+              {/* Row 3: Detailed Tabs */}
+              <Card className="shadow-sm border-none ring-1 ring-border/50 bg-card/50 rounded-xl w-full">
                 <Tabs defaultValue="explanation" className="w-full">
                   <div className="border-b px-6 pt-4">
-                    <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 h-auto max-w-2xl bg-muted/50">
+                    <TabsList className="flex flex-col h-96">
                       <TabsTrigger value="explanation">Explanation</TabsTrigger>
                       <TabsTrigger value="profile">Profile Details</TabsTrigger>
                       <TabsTrigger value="tree">Explainability</TabsTrigger>
@@ -457,7 +458,7 @@ export default function Home() {
                     </TabsList>
                   </div>
 
-                  <div className="p-6">
+                  <div className="p-6 min-h-[300px]">
                     <TabsContent value="explanation" className="mt-0 focus-visible:outline-none">
                       <div className="space-y-4">
                         <div className="flex items-center justify-between">
@@ -468,14 +469,18 @@ export default function Home() {
                             {mode === 'expert' ? 'Expert View' : 'Patient View'}
                           </Badge>
                         </div>
-                        <div className="prose prose-sm md:prose-base dark:prose-invert max-w-none text-muted-foreground leading-relaxed">
-                          {result.llm_generated_explanation.summary}
-                        </div>
+                        <Card className="shadow-none border bg-muted/20 mt-6">
+                          <CardContent className="p-6 leading-relaxed text-sm text-slate-700 dark:text-slate-300">
+                            <div className="space-y-4 whitespace-pre-line">
+                              {result.llm_generated_explanation.summary}
+                            </div>
+                          </CardContent>
+                        </Card>
                       </div>
                     </TabsContent>
 
                     <TabsContent value="profile" className="mt-0 focus-visible:outline-none">
-                      <div className="rounded-md border">
+                      <div className="rounded-md border overflow-hidden">
                         <table className="w-full text-sm text-left">
                           <thead className="bg-muted/50 text-muted-foreground font-medium border-b">
                             <tr>
