@@ -36,7 +36,8 @@ import {
 
 // --- Types ---
 
-interface AnalysisResult {
+// 1. Raw types matching actual backend response
+interface RawAnalysisResult {
   patient_id: string;
   drug: string;
   timestamp: string;
@@ -72,6 +73,49 @@ interface AnalysisResult {
   };
 }
 
+// 2. Transformed types matching desired frontend usage
+interface AnalysisResult {
+  patient_id: string;
+  drug: string;
+  timestamp: string;
+  risk_assessment: {
+    risk_label: string;
+    confidence_score: number;
+    severity: 'none' | 'low' | 'moderate' | 'high' | 'critical';
+  };
+  pharmacogenomic_profile: {
+    primary_gene: string;
+    diplotype: string;
+    phenotype: string;
+    detected_variants: Array<{
+      rsid: string;
+      variant: string;
+    }>;
+  };
+  clinical_recommendation: {
+    text: string;
+  };
+  llm_generated_explanation: {
+    summary: string;
+  };
+  quality_metrics: {
+    vcf_parsing_success: boolean;
+    genotype_completeness: string;
+  };
+  // Keeping explainability_tree for UI visualization even if not in JSON spec
+  explainability_tree: {
+    drug: string;
+    gene: string;
+    variant: string;
+    phenotype: string;
+    risk: string;
+    recommendation: string;
+  };
+  mode: 'patient' | 'expert'; // Keeping mode for UI logic
+  cache_status: 'HIT' | 'MISS'; // Keeping cache for UI logic
+  genomic_signature_id: string; // Keeping for UI signature
+}
+
 const DRUG_OPTIONS = [
   "CODEINE",
   "WARFARIN",
@@ -82,6 +126,52 @@ const DRUG_OPTIONS = [
 ];
 
 // --- Helpers ---
+
+// Transform function
+const transformAnalysisResult = (raw: RawAnalysisResult): AnalysisResult => {
+  // Infer severity from level
+  let severity: AnalysisResult['risk_assessment']['severity'] = 'moderate';
+  const r = raw.risk_assessment.level.toLowerCase();
+  if (r.includes('toxic') || r.includes('severe')) severity = 'critical';
+  else if (r.includes('high') || r.includes('avoid')) severity = 'high';
+  else if (r.includes('note') || r.includes('monitor')) severity = 'low';
+  else if (r.includes('safe') || r.includes('normal')) severity = 'none';
+
+  return {
+    patient_id: raw.patient_id,
+    drug: raw.drug,
+    timestamp: raw.timestamp,
+    mode: raw.mode,
+    risk_assessment: {
+      risk_label: raw.risk_assessment.level,
+      confidence_score: raw.risk_assessment.confidence_score,
+      severity,
+    },
+    pharmacogenomic_profile: {
+      primary_gene: raw.pharmacogenomic_profile.gene,
+      diplotype: raw.pharmacogenomic_profile.detected_variant, // Mapping detected_variant to diplotype as requested
+      phenotype: raw.pharmacogenomic_profile.phenotype,
+      detected_variants: [
+        {
+          rsid: "N/A", // Backend doesn't provide rsID yet
+          variant: raw.pharmacogenomic_profile.detected_variant
+        }
+      ]
+    },
+    clinical_recommendation: {
+      text: raw.clinical_recommendation
+    },
+    llm_generated_explanation: raw.llm_generated_explanation,
+    quality_metrics: {
+      vcf_parsing_success: raw.quality_metrics.vcf_quality === 'PASS',
+      genotype_completeness: raw.quality_metrics.genotype_completeness
+    },
+    explainability_tree: raw.explainability_tree,
+    cache_status: raw.cache_status,
+    genomic_signature_id: raw.genomic_signature_id
+  };
+};
+
 
 const getRiskColor = (risk: string) => {
   const r = risk.toLowerCase();
@@ -144,8 +234,9 @@ export default function Home() {
         throw new Error(errData.error || "Analysis failed");
       }
 
-      const data: AnalysisResult = await response.json();
-      setResult(data);
+      const rawData: RawAnalysisResult = await response.json();
+      const transformedData = transformAnalysisResult(rawData);
+      setResult(transformedData);
     } catch (err: unknown) {
       let errorMessage = "An unexpected error occurred.";
       if (err instanceof Error) {
@@ -335,7 +426,7 @@ export default function Home() {
               <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-stretch">
 
                 {/* Risk Card */}
-                <Card className={`md:col-span-7 lg:col-span-8 border-l-8 overflow-hidden shadow-sm rounded-xl h-full ${getRiskColor(result.risk_assessment.level)}`}>
+                <Card className={`md:col-span-7 lg:col-span-8 border-l-8 overflow-hidden shadow-sm rounded-xl h-full ${getRiskColor(result.risk_assessment.risk_label)}`}>
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between mb-1">
                       <Badge variant="outline" className="bg-background/50 font-mono text-xs uppercase tracking-wider">
@@ -354,7 +445,7 @@ export default function Home() {
                   <CardContent className="p-6 pt-0">
                     <div className="flex flex-col gap-1">
                       <span className="text-4xl md:text-5xl font-extrabold tracking-tight">
-                        {result.risk_assessment.level}
+                        {result.risk_assessment.risk_label}
                       </span>
                       <span className="text-xl font-medium opacity-80 mt-1">
                         for {result.drug}
@@ -381,7 +472,7 @@ export default function Home() {
                     <Progress
                       value={result.risk_assessment.confidence_score * 100}
                       className="h-3 w-full"
-                      indicatorClassName={getProgressBarColor(result.risk_assessment.level)}
+                      indicatorClassName={getProgressBarColor(result.risk_assessment.risk_label)}
                     />
                   </CardContent>
                 </Card>
@@ -398,7 +489,7 @@ export default function Home() {
                   </CardHeader>
                   <CardContent className="p-6">
                     <p className="text-lg text-foreground leading-relaxed">
-                      {result.clinical_recommendation}
+                      {result.clinical_recommendation.text}
                     </p>
                   </CardContent>
                 </Card>
@@ -414,7 +505,7 @@ export default function Home() {
                     <div className="space-y-3">
                       <div className="flex justify-between items-center py-2 border-b border-border/50">
                         <span className="text-sm text-muted-foreground">Target Gene</span>
-                        <span className="font-mono font-medium">{result.pharmacogenomic_profile.gene}</span>
+                        <span className="font-mono font-medium">{result.pharmacogenomic_profile.primary_gene}</span>
                       </div>
                       <div className="flex justify-between items-center py-2 border-b border-border/50">
                         <span className="text-sm text-muted-foreground">Phenotype</span>
@@ -423,7 +514,7 @@ export default function Home() {
                       <div className="flex justify-between items-center py-2 border-b border-border/50">
                         <span className="text-sm text-muted-foreground">Detected Variant</span>
                         <Badge variant="secondary" className="font-mono">
-                          {result.pharmacogenomic_profile.detected_variant || "None"}
+                          {result.pharmacogenomic_profile.diplotype || "None"}
                         </Badge>
                       </div>
                       <div className="flex justify-between items-center py-2">
@@ -492,7 +583,7 @@ export default function Home() {
                           <tbody className="divide-y">
                             <tr>
                               <td className="px-4 py-3 font-medium">Gene</td>
-                              <td className="px-4 py-3 font-mono text-primary">{result.pharmacogenomic_profile.gene}</td>
+                              <td className="px-4 py-3 font-mono text-primary">{result.pharmacogenomic_profile.primary_gene}</td>
                               <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">Target biomarker for {result.drug}</td>
                             </tr>
                             <tr>
@@ -502,12 +593,14 @@ export default function Home() {
                             </tr>
                             <tr>
                               <td className="px-4 py-3 font-medium">Detected Variant</td>
-                              <td className="px-4 py-3 font-mono">{result.pharmacogenomic_profile.detected_variant || "N/A"}</td>
+                              <td className="px-4 py-3 font-mono">{result.pharmacogenomic_profile.diplotype || "N/A"}</td>
                               <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">Specific genetic marker identified</td>
                             </tr>
                             <tr>
                               <td className="px-4 py-3 font-medium">Quality Check</td>
-                              <td className="px-4 py-3 text-emerald-600 font-medium">PASS</td>
+                              <td className={`px-4 py-3 font-medium ${result.quality_metrics.vcf_parsing_success ? 'text-emerald-600' : 'text-red-600'}`}>
+                                {result.quality_metrics.vcf_parsing_success ? 'PASS' : 'FAIL'}
+                              </td>
                               <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">VCF integrity verified</td>
                             </tr>
                           </tbody>
@@ -575,7 +668,7 @@ export default function Home() {
 
                           {/* Level 5: Risk */}
                           <div className="flex items-center gap-3 ml-32 animate-in fade-in slide-in-from-left-20 duration-500 delay-700">
-                            <div className={`p-2 rounded-md ${result.risk_assessment.level.toLowerCase().includes('high') || result.risk_assessment.level.toLowerCase().includes('toxic') ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                            <div className={`p-2 rounded-md ${result.risk_assessment.risk_label.toLowerCase().includes('high') || result.risk_assessment.risk_label.toLowerCase().includes('toxic') ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
                               <Activity className="w-5 h-5" />
                             </div>
                             <div className="flex flex-col">
