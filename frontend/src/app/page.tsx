@@ -1,24 +1,14 @@
 "use client";
 
 import { useState, FormEvent, useRef, useEffect } from "react";
-import Image from "next/image";
 import {
-  Upload,
-  FileText,
-  AlertCircle,
-  CheckCircle2,
-  Activity,
-  Dna,
-  Fingerprint,
-  Download,
-  Copy,
-  ChevronRight,
-  Search,
-  FlaskConical
+  Upload, FileText, AlertCircle, CheckCircle2, Activity, Dna,
+  Fingerprint, Download, Copy, FlaskConical, ChevronRight,
+  Zap, Shield, Beaker, Building2
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
@@ -27,140 +17,76 @@ import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // --- Types ---
-
-// 1. Raw types matching actual backend response
 interface RawAnalysisResult {
   patient_id: string;
   drug: string;
   timestamp: string;
   mode: 'patient' | 'expert';
-  risk_assessment: {
-    level: string;
-    confidence_score: number;
-  };
+  risk_assessment: { level: string; confidence_score: number };
   pharmacogenomic_profile: {
-    gene: string;
-    phenotype: string;
-    detected_variant: string;
-    total_variants_found: number;
-    signature_hash: string;
+    gene: string; phenotype: string; detected_variant: string;
+    total_variants_found: number; signature_hash: string;
   };
   clinical_recommendation: string;
-  llm_generated_explanation: {
-    summary: string;
-  };
+  llm_generated_explanation: { summary: string };
   explainability_tree: {
-    drug: string;
-    gene: string;
-    variant: string;
-    phenotype: string;
-    risk: string;
-    recommendation: string;
+    drug: string; gene: string; variant: string;
+    phenotype: string; risk: string; recommendation: string;
   };
   genomic_signature_id: string;
   cache_status: 'HIT' | 'MISS';
-  quality_metrics: {
-    vcf_quality: string;
-    genotype_completeness: string;
-  };
+  quality_metrics: { vcf_quality: string; genotype_completeness: string };
 }
 
-// 2. Transformed types matching desired frontend usage
 interface AnalysisResult {
-  patient_id: string;
-  drug: string;
-  timestamp: string;
-  risk_assessment: {
-    risk_label: string;
-    confidence_score: number;
-    severity: 'none' | 'low' | 'moderate' | 'high' | 'critical';
-  };
+  patient_id: string; drug: string; timestamp: string; mode: 'patient' | 'expert';
+  risk_assessment: { risk_label: string; confidence_score: number; severity: string };
   pharmacogenomic_profile: {
-    primary_gene: string;
-    diplotype: string;
-    phenotype: string;
-    detected_variants: Array<{
-      rsid: string;
-      variant: string;
-    }>;
+    primary_gene: string; diplotype: string; phenotype: string;
+    detected_variants: Array<{ rsid: string; variant: string }>;
   };
-  clinical_recommendation: {
-    text: string;
-  };
-  llm_generated_explanation: {
-    summary: string;
-  };
-  quality_metrics: {
-    vcf_parsing_success: boolean;
-    genotype_completeness: string;
-  };
-  // Keeping explainability_tree for UI visualization even if not in JSON spec
+  clinical_recommendation: { text: string };
+  llm_generated_explanation: { summary: string };
+  quality_metrics: { vcf_parsing_success: boolean; genotype_completeness: string };
   explainability_tree: {
-    drug: string;
-    gene: string;
-    variant: string;
-    phenotype: string;
-    risk: string;
-    recommendation: string;
+    drug: string; gene: string; variant: string;
+    phenotype: string; risk: string; recommendation: string;
   };
-  mode: 'patient' | 'expert'; // Keeping mode for UI logic
-  cache_status: 'HIT' | 'MISS'; // Keeping cache for UI logic
-  genomic_signature_id: string; // Keeping for UI signature
+  cache_status: 'HIT' | 'MISS';
+  genomic_signature_id: string;
 }
 
-const DRUG_OPTIONS = [
-  "CODEINE",
-  "WARFARIN",
-  "CLOPIDOGREL",
-  "SIMVASTATIN",
-  "AZATHIOPRINE",
-  "FLUOROURACIL",
+type Theme = 'clinical' | 'premium-ai' | 'enterprise';
+
+const DRUG_OPTIONS = ["CODEINE", "WARFARIN", "CLOPIDOGREL", "SIMVASTATIN", "AZATHIOPRINE", "FLUOROURACIL"];
+
+const THEMES: { id: Theme; label: string; icon: React.ReactNode; desc: string }[] = [
+  { id: 'clinical', label: 'Clinical', icon: <Shield className="w-3.5 h-3.5" />, desc: 'Blue · Teal' },
+  { id: 'premium-ai', label: 'Premium AI', icon: <Zap className="w-3.5 h-3.5" />, desc: 'Indigo · Purple' },
+  { id: 'enterprise', label: 'Enterprise', icon: <Building2 className="w-3.5 h-3.5" />, desc: 'Slate · Emerald' },
 ];
 
-// --- Helpers ---
-
-// Transform function
 const transformAnalysisResult = (raw: RawAnalysisResult): AnalysisResult => {
-  // Infer severity from level
-  let severity: AnalysisResult['risk_assessment']['severity'] = 'moderate';
+  let severity = 'moderate';
   const r = raw.risk_assessment.level.toLowerCase();
   if (r.includes('toxic') || r.includes('severe')) severity = 'critical';
   else if (r.includes('high') || r.includes('avoid')) severity = 'high';
   else if (r.includes('note') || r.includes('monitor')) severity = 'low';
   else if (r.includes('safe') || r.includes('normal')) severity = 'none';
-
   return {
-    patient_id: raw.patient_id,
-    drug: raw.drug,
-    timestamp: raw.timestamp,
-    mode: raw.mode,
-    risk_assessment: {
-      risk_label: raw.risk_assessment.level,
-      confidence_score: raw.risk_assessment.confidence_score,
-      severity,
-    },
+    patient_id: raw.patient_id, drug: raw.drug,
+    timestamp: raw.timestamp, mode: raw.mode,
+    risk_assessment: { risk_label: raw.risk_assessment.level, confidence_score: raw.risk_assessment.confidence_score, severity },
     pharmacogenomic_profile: {
       primary_gene: raw.pharmacogenomic_profile.gene,
-      diplotype: raw.pharmacogenomic_profile.detected_variant, // Mapping detected_variant to diplotype as requested
+      diplotype: raw.pharmacogenomic_profile.detected_variant,
       phenotype: raw.pharmacogenomic_profile.phenotype,
-      detected_variants: [
-        {
-          rsid: "N/A", // Backend doesn't provide rsID yet
-          variant: raw.pharmacogenomic_profile.detected_variant
-        }
-      ]
+      detected_variants: [{ rsid: "N/A", variant: raw.pharmacogenomic_profile.detected_variant }]
     },
-    clinical_recommendation: {
-      text: raw.clinical_recommendation
-    },
+    clinical_recommendation: { text: raw.clinical_recommendation },
     llm_generated_explanation: raw.llm_generated_explanation,
     quality_metrics: {
       vcf_parsing_success: raw.quality_metrics.vcf_quality === 'PASS',
@@ -172,78 +98,138 @@ const transformAnalysisResult = (raw: RawAnalysisResult): AnalysisResult => {
   };
 };
 
-
-const getRiskColor = (risk: string) => {
+const getRiskConfig = (risk: string) => {
   const r = risk.toLowerCase();
   if (r.includes("toxic") || r.includes("ineffective") || r.includes("high") || r.includes("avoid") || r.includes("severe")) {
-    return "bg-destructive/10 border-destructive/20 text-destructive shadow-sm";
+    return {
+      bg: "bg-red-950/60 border-red-500/30",
+      text: "text-red-300",
+      badge: "bg-red-500/20 text-red-300 border-red-500/30",
+      progress: "bg-red-500",
+      glow: "shadow-red-900/40",
+      label: "High Risk"
+    };
   }
-  if (r.includes("caution") || r.includes("monitor") || r.includes("reduced") || r.includes("sensitivity")) {
-    return "bg-yellow-500/10 border-yellow-500/20 text-yellow-700 dark:text-yellow-400 shadow-sm";
+  if (r.includes("caution") || r.includes("monitor") || r.includes("reduced") || r.includes("sensitivity") || r.includes("adjust")) {
+    return {
+      bg: "bg-amber-950/60 border-amber-500/30",
+      text: "text-amber-300",
+      badge: "bg-amber-500/20 text-amber-300 border-amber-500/30",
+      progress: "bg-amber-500",
+      glow: "shadow-amber-900/40",
+      label: "Adjust Dose"
+    };
   }
-  return "bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-400 shadow-sm";
+  return {
+    bg: "bg-emerald-950/60 border-emerald-500/30",
+    text: "text-emerald-300",
+    badge: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+    progress: "bg-emerald-500",
+    glow: "shadow-emerald-900/40",
+    label: "Safe"
+  };
 };
 
-const getProgressBarColor = (risk: string) => {
-  const r = risk.toLowerCase();
-  if (r.includes("toxic") || r.includes("ineffective") || r.includes("high") || r.includes("avoid")) return "bg-destructive";
-  if (r.includes("caution") || r.includes("monitor")) return "bg-yellow-500";
-  return "bg-emerald-500";
-};
+// --- Explainability Chain ---
+function ExplainabilityChain({ tree, risk }: { tree: AnalysisResult['explainability_tree']; risk: string }) {
+  const riskCfg = getRiskConfig(risk);
+  const steps = [
+    { icon: <FlaskConical className="w-5 h-5" />, label: "Drug", value: tree.drug, color: "bg-blue-500/20 text-blue-300 border-blue-500/30" },
+    { icon: <Dna className="w-5 h-5" />, label: "Gene", value: tree.gene, color: "bg-purple-500/20 text-purple-300 border-purple-500/30" },
+    { icon: <Beaker className="w-5 h-5" />, label: "Variant", value: tree.variant, color: "bg-indigo-500/20 text-indigo-300 border-indigo-500/30", mono: true },
+    { icon: <Fingerprint className="w-5 h-5" />, label: "Phenotype", value: tree.phenotype, color: "bg-pink-500/20 text-pink-300 border-pink-500/30" },
+    { icon: <Activity className="w-5 h-5" />, label: "Risk", value: tree.risk, color: riskCfg.badge },
+  ];
 
-// --- Components ---
+  return (
+    <div className="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-0 overflow-x-auto pb-2">
+      {steps.map((step, i) => (
+        <div key={step.label} className="flex flex-row md:flex-row items-center gap-2 md:gap-0">
+          <div
+            className={`flex flex-col items-center justify-center gap-1.5 px-4 py-3 rounded-xl border backdrop-blur-sm min-w-[120px] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg slide-in-bottom ${step.color}`}
+            style={{ animationDelay: `${i * 100}ms` }}
+          >
+            <div className="opacity-80">{step.icon}</div>
+            <span className="text-[10px] font-bold uppercase tracking-widest opacity-60">{step.label}</span>
+            <span className={`text-sm font-semibold text-center leading-tight ${step.mono ? 'font-mono text-xs' : ''}`}>
+              {step.value}
+            </span>
+          </div>
+          {i < steps.length - 1 && (
+            <ChevronRight className="w-4 h-4 opacity-30 shrink-0 rotate-0 md:rotate-0 mx-1" />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
 
+// --- Skeleton Loader ---
+function SkeletonDashboard() {
+  return (
+    <div className="flex flex-col gap-6 animate-pulse">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+        <Skeleton className="md:col-span-7 h-44 rounded-xl bg-white/5" />
+        <Skeleton className="md:col-span-5 h-44 rounded-xl bg-white/5" />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Skeleton className="h-40 rounded-xl bg-white/5" />
+        <Skeleton className="h-40 rounded-xl bg-white/5" />
+      </div>
+      <Skeleton className="h-72 rounded-xl bg-white/5" />
+    </div>
+  );
+}
+
+// --- Main Component ---
 export default function Home() {
   const [selectedDrug, setSelectedDrug] = useState<string>(DRUG_OPTIONS[0]);
   const [mode, setMode] = useState<'patient' | 'expert'>('patient');
+  const [theme, setTheme] = useState<Theme>('clinical');
   const [file, setFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [progressVal, setProgressVal] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
+  // Apply theme to document root
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
+
+  // Animate progress on result
+  useEffect(() => {
+    if (result) {
+      setProgressVal(0);
+      const target = Math.round(result.risk_assessment.confidence_score * 100);
+      const timer = setTimeout(() => setProgressVal(target), 100);
+      return () => clearTimeout(timer);
     }
+  }, [result]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files?.[0]) setFile(e.target.files[0]);
   };
 
-  // Refactored to allow calling from both submit and mode toggle
   const runAnalysis = async (currentFile: File, currentDrug: string, currentMode: 'patient' | 'expert') => {
     setError(null);
     setIsLoading(true);
-    // Keep previous result visible while loading new one if it exists, or clear if you prefer
-    // setResult(null); 
-
     try {
       const formData = new FormData();
-      // Append primitives first for reliable parsing
       formData.append("drug", currentDrug);
       formData.append("mode", currentMode);
       formData.append("file", currentFile);
-
-      const response = await fetch("/api/analyze", {
-        method: "POST",
-        body: formData,
-      });
-
+      const response = await fetch("/api/analyze", { method: "POST", body: formData });
       if (!response.ok) {
         const errData = await response.json();
         throw new Error(errData.error || "Analysis failed");
       }
-
       const rawData: RawAnalysisResult = await response.json();
-      const transformedData = transformAnalysisResult(rawData);
-      setResult(transformedData);
+      setResult(transformAnalysisResult(rawData));
     } catch (err: unknown) {
-      let errorMessage = "An unexpected error occurred.";
-      if (err instanceof Error) {
-        errorMessage = err.message;
-      } else if (typeof err === "string") {
-        errorMessage = err;
-      }
-      setError(errorMessage);
-      setResult(null); // Clear result on error
+      setError(err instanceof Error ? err.message : "An unexpected error occurred.");
+      setResult(null);
     } finally {
       setIsLoading(false);
     }
@@ -251,506 +237,450 @@ export default function Home() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!file) {
-      setError("Please select a VCF file.");
-      return;
-    }
+    if (!file) { setError("Please select a VCF file."); return; }
     await runAnalysis(file, selectedDrug, mode);
   };
 
-  // Trigger re-analysis when mode changes, ONLY if we already have a result displayed.
-  // This ensures the view updates "responsively" to the toggle.
   useEffect(() => {
-    if (file && result) {
-      runAnalysis(file, selectedDrug, mode);
-    }
-  }, [mode]); // Re-run whenever 'mode' changes
+    if (file && result) runAnalysis(file, selectedDrug, mode);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
 
   const copyToClipboard = () => {
-    if (result) {
-      navigator.clipboard.writeText(JSON.stringify(result, null, 2));
-      alert("Copied to clipboard!");
-    }
+    if (result) { navigator.clipboard.writeText(JSON.stringify(result, null, 2)); }
   };
 
   const downloadJson = () => {
-    if (result) {
-      const blob = new Blob([JSON.stringify(result, null, 2)], {
-        type: "application/json",
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `pharmaguard_report_${result.patient_id.slice(0, 8)}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    }
+    if (!result) return;
+    const blob = new Blob([JSON.stringify(result, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `pharmaguard_${result.patient_id.slice(0, 8)}.json`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
   };
 
+  const riskCfg = result ? getRiskConfig(result.risk_assessment.risk_label) : null;
+  const isExpert = mode === 'expert';
+
   return (
-    <div className="min-h-screen bg-background font-sans selection:bg-primary/10 pb-20">
-      <TooltipProvider>
-        {/* 1. HEADER BAR */}
-        <header className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="container flex h-16 items-center justify-between px-4 md:px-6 max-w-7xl mx-auto">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 text-primary">
+    <TooltipProvider>
+      <div className="min-h-screen bg-background text-foreground font-sans" data-theme={theme}>
+
+        {/* HEADER */}
+        <header className="sticky top-0 z-50 w-full border-b border-white/10 backdrop-blur-xl"
+          style={{ background: 'linear-gradient(to right, rgba(var(--primary-rgb,99,102,241),0.08), transparent)' }}>
+          <div className="max-w-6xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between gap-4">
+            {/* Logo */}
+            <div className="flex items-center gap-3 shrink-0">
+              <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-primary/20 text-primary shadow-sm">
                 <Activity className="w-5 h-5" />
               </div>
-              <div className="flex flex-col">
-                <span className="text-lg font-bold tracking-tight text-foreground">PharmaGuard</span>
-                <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium hidden sm:inline-block">Pharmacogenomic Risk System</span>
+              <div>
+                <div className="text-base font-bold tracking-tight leading-none">PharmaGuard</div>
+                <div className="text-[10px] text-muted-foreground uppercase tracking-widest hidden sm:block">Pharmacogenomic AI</div>
               </div>
             </div>
 
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
+            {/* Controls */}
+            <div className="flex items-center gap-3 flex-wrap justify-end">
+              {/* Theme Selector */}
+              <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-lg p-1">
+                {THEMES.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => setTheme(t.id)}
+                    title={t.desc}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200 ${theme === t.id
+                        ? 'bg-primary text-primary-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                      }`}
+                  >
+                    {t.icon}
+                    <span className="hidden sm:inline">{t.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Mode Toggle */}
+              <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-3 py-2">
                 <span
                   onClick={() => setMode('patient')}
-                  className={`cursor-pointer text-xs font-medium transition-colors ${mode === 'patient' ? 'text-primary' : 'text-muted-foreground'}`}
-                >
-                  Patient
-                </span>
+                  className={`cursor-pointer text-xs font-medium transition-colors select-none ${mode === 'patient' ? 'text-primary' : 'text-muted-foreground'}`}
+                >Patient</span>
                 <Switch
                   checked={mode === 'expert'}
-                  onCheckedChange={(checked) => setMode(checked ? 'expert' : 'patient')}
-                  className="data-[state=checked]:bg-primary"
+                  onCheckedChange={(c) => setMode(c ? 'expert' : 'patient')}
+                  className="data-[state=checked]:bg-primary scale-90"
                 />
                 <span
                   onClick={() => setMode('expert')}
-                  className={`cursor-pointer text-xs font-medium transition-colors ${mode === 'expert' ? 'text-primary' : 'text-muted-foreground'}`}
-                >
-                  Expert
-                </span>
+                  className={`cursor-pointer text-xs font-medium transition-colors select-none ${mode === 'expert' ? 'text-primary' : 'text-muted-foreground'}`}
+                >Expert</span>
               </div>
             </div>
           </div>
         </header>
 
-        <main className="container max-w-5xl mx-auto py-10 px-4 md:px-6 space-y-12">
+        <main className="max-w-6xl mx-auto px-4 md:px-6 py-10 flex flex-col gap-10">
 
-          {/* 2. INPUT CARD */}
-          <section className="flex justify-center animate-in fade-in slide-in-from-bottom-2 duration-500">
-            <Card className="w-full max-w-2xl border-none shadow-sm rounded-xl bg-card/50 backdrop-blur-sm ring-1 ring-black/5 dark:ring-white/10">
-              <CardHeader className="text-center pb-8 border-b border-border/50">
-                <CardTitle className="text-2xl font-bold">New Analysis</CardTitle>
-                <CardDescription>Select a medication and upload your VCF file to assess pharmacogenomic risk.</CardDescription>
+          {/* INPUT CARD */}
+          <section className="flex justify-center slide-in-bottom">
+            <Card className={`w-full max-w-2xl bg-white/5 backdrop-blur-md border border-white/10 shadow-sm rounded-xl transition-all ${isExpert ? '' : 'py-2'}`}>
+              <CardHeader className={`text-center border-b border-white/10 ${isExpert ? 'pb-4 pt-5' : 'pb-6 pt-8'}`}>
+                <CardTitle className={isExpert ? 'text-xl font-bold' : 'text-2xl font-bold'}>
+                  {isExpert ? 'Analysis Parameters' : 'New Genomic Analysis'}
+                </CardTitle>
+                <CardDescription className={isExpert ? 'text-xs' : 'text-sm'}>
+                  {isExpert
+                    ? 'Configure pharmacogenomic variant analysis with VCF input.'
+                    : 'Upload your genetic data to understand how your body processes medication.'}
+                </CardDescription>
               </CardHeader>
-              <CardContent className="pt-8 space-y-6 p-6">
+              <CardContent className={`${isExpert ? 'p-4 space-y-4' : 'p-6 space-y-6'}`}>
                 {error && (
-                  <Alert variant="destructive" className="animate-pulse">
+                  <Alert variant="destructive" className="bg-red-950/50 border-red-500/30 text-red-300">
                     <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>Analysis Error</AlertTitle>
-                    <AlertDescription>{error}</AlertDescription>
+                    <AlertTitle>Error</AlertTitle>
+                    <AlertDescription className="text-sm">{error}</AlertDescription>
                   </Alert>
                 )}
 
-                <div className="space-y-4">
-                  <div className="grid gap-2">
-                    <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                      Target Medication
-                    </label>
-                    <Select value={selectedDrug} onValueChange={setSelectedDrug}>
-                      <SelectTrigger className="w-full h-12 text-base">
-                        <SelectValue placeholder="Select a drug" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {DRUG_OPTIONS.map((drug) => (
-                          <SelectItem key={drug} value={drug} className="cursor-pointer">
-                            {drug}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-[0.8rem] text-muted-foreground">
-                      Choose the medication you intend to prescribe or check against.
-                    </p>
-                  </div>
+                {/* Drug Select */}
+                <div className="space-y-2">
+                  <label className={`font-medium ${isExpert ? 'text-xs text-muted-foreground uppercase tracking-wider' : 'text-sm'}`}>
+                    {isExpert ? 'Target Drug' : 'Select Medication'}
+                  </label>
+                  <Select value={selectedDrug} onValueChange={setSelectedDrug}>
+                    <SelectTrigger className={`bg-white/5 border-white/10 ${isExpert ? 'h-9 text-sm font-mono' : 'h-12 text-base'}`}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background/95 backdrop-blur-md border-white/10">
+                      {DRUG_OPTIONS.map((drug) => (
+                        <SelectItem key={drug} value={drug} className={`cursor-pointer ${isExpert ? 'font-mono text-sm' : ''}`}>
+                          {drug}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                  <div className="grid gap-2">
-                    <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                      Genomic Data (VCF)
-                    </label>
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      className={`
-                        relative flex flex-col items-center justify-center w-full h-40 rounded-xl border-2 border-dashed 
-                        transition-all duration-200 outline-none
-                        ${file
-                          ? "border-primary/50 bg-primary/5"
-                          : "border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/50"}
-                      `}
-                      onClick={() => fileInputRef.current?.click()}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') fileInputRef.current?.click() }}
-                    >
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept=".vcf,.txt"
-                        className="hidden"
-                        onChange={handleFileChange}
-                      />
-
-                      {file ? (
-                        <div className="flex flex-col items-center gap-2 text-primary animate-in zoom-in-50 duration-300">
-                          <CheckCircle2 className="w-10 h-10" />
-                          <div className="text-center">
-                            <p className="font-semibold text-sm">{file.name}</p>
-                            <p className="text-xs text-muted-foreground">{(file.size / 1024).toFixed(1)} KB ready</p>
-                          </div>
+                {/* VCF Upload */}
+                <div className="space-y-2">
+                  <label className={`font-medium ${isExpert ? 'text-xs text-muted-foreground uppercase tracking-wider' : 'text-sm'}`}>
+                    {isExpert ? 'VCF Input File' : 'Genomic Data (VCF)'}
+                  </label>
+                  <div
+                    role="button" tabIndex={0}
+                    onClick={() => fileInputRef.current?.click()}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') fileInputRef.current?.click(); }}
+                    className={`relative flex flex-col items-center justify-center w-full rounded-xl border-2 border-dashed transition-all duration-200 cursor-pointer outline-none
+                      ${isExpert ? 'h-28' : 'h-40'}
+                      ${file ? 'border-primary/50 bg-primary/5' : 'border-white/15 hover:border-primary/40 hover:bg-white/5'}`}
+                  >
+                    <input ref={fileInputRef} type="file" accept=".vcf,.txt" className="hidden" onChange={handleFileChange} />
+                    {file ? (
+                      <div className="flex flex-col items-center gap-2 text-primary">
+                        <CheckCircle2 className="w-8 h-8" />
+                        <div className="text-center">
+                          <p className={`font-semibold ${isExpert ? 'text-xs font-mono' : 'text-sm'}`}>{file.name}</p>
+                          <p className="text-xs text-muted-foreground">{(file.size / 1024).toFixed(1)} KB</p>
                         </div>
-                      ) : (
-                        <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                          <Upload className="w-8 h-8 opacity-50" />
-                          <div className="text-center">
-                            <p className="font-medium text-sm text-foreground">Click to upload or drag and drop</p>
-                            <p className="text-xs">VCF or TXT files supported</p>
-                          </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                        <Upload className={isExpert ? 'w-6 h-6 opacity-40' : 'w-8 h-8 opacity-50'} />
+                        <div className="text-center">
+                          <p className={`font-medium text-foreground ${isExpert ? 'text-xs' : 'text-sm'}`}>Click to upload VCF</p>
+                          <p className="text-xs text-muted-foreground">.vcf or .txt</p>
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 </div>
-              </CardContent>
-              <CardFooter className="pb-8 pt-2">
+
+                {/* Analyze Button */}
                 <Button
                   onClick={handleSubmit}
                   disabled={isLoading || !file}
-                  className="w-full py-6 text-base font-semibold shadow-sm shadow-primary/20 transition-all hover:shadow-primary/30 rounded-lg"
-                  size="lg"
+                  className={`w-full font-semibold transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg
+                    ${isExpert ? 'h-9 text-sm' : 'h-12 text-base'}`}
                 >
                   {isLoading ? (
-                    <>
-                      <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                      Running Pharmacogenomic Analysis...
-                    </>
+                    <span className="flex items-center gap-2">
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                      Analyzing...
+                    </span>
                   ) : (
-                    "Analyze Profile"
+                    <span className="flex items-center gap-2">
+                      <Activity className="w-4 h-4" />
+                      {isExpert ? 'Run Analysis' : 'Analyze My Profile'}
+                    </span>
                   )}
                 </Button>
-              </CardFooter>
+              </CardContent>
             </Card>
           </section>
 
-          {/* 3. RESULTS DASHBOARD */}
-          {isLoading && !result && (
-            <div className="max-w-5xl mx-auto space-y-8 animate-pulse">
-              <div className="grid gap-6 md:grid-cols-2">
-                <Skeleton className="h-48 rounded-xl" />
-                <Skeleton className="h-48 rounded-xl" />
-              </div>
-              <Skeleton className="h-96 rounded-xl" />
-            </div>
-          )}
+          {/* SKELETON */}
+          {isLoading && !result && <SkeletonDashboard />}
 
+          {/* RESULTS */}
           {result && (
-            <div className={`flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2 duration-500 transition-opacity ${isLoading ? 'opacity-60 grayscale-[30%] pointer-events-none' : ''}`}>
+            <div className={`flex flex-col gap-6 slide-in-bottom transition-opacity duration-300 ${isLoading ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
 
-              {/* Row 1: Risk + Confidence */}
+              {/* ROW 1: Risk + Confidence */}
               <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-stretch">
 
                 {/* Risk Card */}
-                <Card className={`md:col-span-7 lg:col-span-8 border-l-8 overflow-hidden shadow-sm rounded-xl h-full ${getRiskColor(result.risk_assessment.risk_label)}`}>
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center justify-between mb-1">
-                      <Badge variant="outline" className="bg-background/50 font-mono text-xs uppercase tracking-wider">
+                <Card className={`md:col-span-7 border rounded-xl shadow-lg overflow-hidden backdrop-blur-md ${riskCfg!.bg} ${riskCfg!.glow}`}>
+                  <CardHeader className="pb-2 pt-5 px-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <Badge className={`text-xs font-mono border ${riskCfg!.badge}`}>
                         {result.timestamp.split("T")[0]}
                       </Badge>
-                      {result.cache_status === 'HIT' && (
-                        <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 border-none">
-                          ⚡ Instant Result
-                        </Badge>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {result.cache_status === 'HIT' && (
+                          <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-xs gap-1">
+                            <Zap className="w-3 h-3" /> Cached
+                          </Badge>
+                        )}
+                        <Badge className={`text-xs border ${riskCfg!.badge}`}>{riskCfg!.label}</Badge>
+                      </div>
                     </div>
-                    <CardTitle className="text-sm font-medium uppercase tracking-wider opacity-70">
-                      Risk Assessment
-                    </CardTitle>
+                    <p className="text-xs uppercase tracking-widest opacity-50 font-bold">Risk Assessment</p>
                   </CardHeader>
-                  <CardContent className="p-6 pt-0">
-                    <div className="flex flex-col gap-1">
-                      <span className="text-4xl md:text-5xl font-extrabold tracking-tight">
-                        {result.risk_assessment.risk_label}
-                      </span>
-                      <span className="text-xl font-medium opacity-80 mt-1">
-                        for {result.drug}
-                      </span>
+                  <CardContent className="px-6 pb-6">
+                    <div className={`font-extrabold tracking-tight leading-none ${riskCfg!.text} ${isExpert ? 'text-4xl' : 'text-5xl md:text-6xl'}`}>
+                      {result.risk_assessment.risk_label}
                     </div>
+                    <div className={`mt-2 opacity-80 font-medium ${isExpert ? 'text-base' : 'text-xl'}`}>
+                      for <span className="font-mono">{result.drug}</span>
+                    </div>
+                    {isExpert && (
+                      <div className="mt-3 flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground font-mono">Patient:</span>
+                        <span className="text-xs font-mono text-muted-foreground">{result.patient_id.slice(0, 12)}...</span>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
 
                 {/* Confidence Card */}
-                <Card className="md:col-span-5 lg:col-span-4 flex flex-col justify-center border-none bg-card shadow-sm rounded-xl ring-1 ring-border/50 h-full">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                      Confidence Score
-                    </CardTitle>
+                <Card className="md:col-span-5 bg-white/5 backdrop-blur-md border border-white/10 rounded-xl shadow-sm flex flex-col justify-center">
+                  <CardHeader className="pb-2 pt-5 px-6">
+                    <p className="text-xs uppercase tracking-widest opacity-50 font-bold">Confidence Score</p>
                   </CardHeader>
-                  <CardContent className="space-y-4 p-6">
+                  <CardContent className="px-6 pb-6 space-y-4">
                     <div className="flex items-end justify-between">
-                      <span className="text-4xl font-bold tabular-nums">
-                        {Math.round(result.risk_assessment.confidence_score * 100)}
+                      <span className={`font-bold tabular-nums ${isExpert ? 'text-4xl' : 'text-5xl'}`}>
+                        {progressVal}
                         <span className="text-lg text-muted-foreground ml-1">%</span>
                       </span>
-                      <span className="text-xs font-medium text-muted-foreground mb-1.5">Based on variant evidence</span>
+                      <span className="text-xs text-muted-foreground mb-1.5">variant evidence</span>
                     </div>
                     <Progress
-                      value={result.risk_assessment.confidence_score * 100}
-                      className="h-3 w-full"
-                      indicatorClassName={getProgressBarColor(result.risk_assessment.risk_label)}
+                      value={progressVal}
+                      className="h-3 bg-white/10 transition-all duration-700"
+                      indicatorClassName={`${riskCfg!.progress} transition-all duration-700`}
                     />
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Low</span>
+                      <span>High</span>
+                    </div>
+
+                    {/* Genomic Signature */}
+                    <Separator className="bg-white/10" />
+                    <div className="space-y-1">
+                      <p className="text-xs uppercase tracking-widest opacity-50 font-bold">Genomic Signature</p>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <p className="font-mono text-xs text-muted-foreground truncate cursor-help border-b border-dashed border-white/20 pb-0.5">
+                            {result.genomic_signature_id}
+                          </p>
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-background/95 border-white/10 font-mono text-xs max-w-xs">
+                          {result.genomic_signature_id}
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
                   </CardContent>
                 </Card>
               </div>
 
-              {/* Row 2: Clinical + Genomic */}
+              {/* ROW 2: Clinical + Genomic */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
-                <Card className="border-t-4 border-t-primary shadow-sm rounded-xl w-full h-full">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <FileText className="w-5 h-5 text-primary" />
+
+                {/* Clinical Recommendation */}
+                <Card className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl shadow-sm">
+                  <CardHeader className="pb-3 pt-5 px-6 border-b border-white/10">
+                    <CardTitle className={`flex items-center gap-2 text-primary ${isExpert ? 'text-sm' : 'text-base'}`}>
+                      <FileText className="w-4 h-4" />
                       Clinical Recommendation
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="p-6">
-                    <p className="text-lg text-foreground leading-relaxed">
-                      {result.clinical_recommendation.text}
-                    </p>
+                  <CardContent className={`px-6 py-5 ${isExpert ? 'text-sm' : 'text-base'} leading-relaxed`}>
+                    {result.clinical_recommendation.text}
                   </CardContent>
                 </Card>
 
-                <Card className="border-t-4 border-t-indigo-500 shadow-sm rounded-xl w-full h-full">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Dna className="w-5 h-5 text-indigo-500" />
+                {/* Genomic Profile */}
+                <Card className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl shadow-sm">
+                  <CardHeader className="pb-3 pt-5 px-6 border-b border-white/10">
+                    <CardTitle className={`flex items-center gap-2 text-indigo-400 ${isExpert ? 'text-sm' : 'text-base'}`}>
+                      <Dna className="w-4 h-4" />
                       Genomic Profile
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="p-6">
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center py-2 border-b border-border/50">
-                        <span className="text-sm text-muted-foreground">Target Gene</span>
-                        <span className="font-mono font-medium">{result.pharmacogenomic_profile.primary_gene}</span>
-                      </div>
-                      <div className="flex justify-between items-center py-2 border-b border-border/50">
-                        <span className="text-sm text-muted-foreground">Phenotype</span>
-                        <span className="font-medium text-right">{result.pharmacogenomic_profile.phenotype}</span>
-                      </div>
-                      <div className="flex justify-between items-center py-2 border-b border-border/50">
-                        <span className="text-sm text-muted-foreground">Detected Variant</span>
-                        <Badge variant="secondary" className="font-mono">
-                          {result.pharmacogenomic_profile.diplotype || "None"}
-                        </Badge>
-                      </div>
-                      <div className="flex justify-between items-center py-2">
-                        <span className="text-sm text-muted-foreground">Signature ID</span>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="font-mono text-xs text-muted-foreground truncat cursor-help border-b border-dotted max-w-[150px] truncate">
-                              {result.genomic_signature_id}
+                  <CardContent className="px-6 py-4">
+                    <div className={`space-y-2 ${isExpert ? 'text-xs' : 'text-sm'}`}>
+                      {[
+                        { label: 'Target Gene', value: result.pharmacogenomic_profile.primary_gene, mono: true, tooltip: 'Pharmacogene responsible for drug metabolism' },
+                        { label: 'Phenotype', value: result.pharmacogenomic_profile.phenotype },
+                        { label: 'Detected Variant', value: result.pharmacogenomic_profile.diplotype || 'None', mono: true, badge: true },
+                        { label: 'VCF Quality', value: result.quality_metrics.vcf_parsing_success ? 'PASS' : 'FAIL', pass: result.quality_metrics.vcf_parsing_success },
+                      ].map((row) => (
+                        <div key={row.label} className="flex justify-between items-center py-1.5 border-b border-white/5 last:border-0">
+                          <span className="text-muted-foreground">{row.label}</span>
+                          {row.badge ? (
+                            <Badge variant="secondary" className="font-mono text-xs bg-white/10 border-white/10">{row.value}</Badge>
+                          ) : row.tooltip ? (
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <span className={`font-semibold ${row.mono ? 'font-mono text-primary cursor-help border-b border-dashed border-white/20' : ''}`}>{row.value}</span>
+                              </TooltipTrigger>
+                              <TooltipContent className="bg-background/95 border-white/10 text-xs">{row.tooltip}</TooltipContent>
+                            </Tooltip>
+                          ) : (
+                            <span className={`font-semibold ${row.mono ? 'font-mono' : ''} ${row.pass === true ? 'text-emerald-400' : row.pass === false ? 'text-red-400' : ''}`}>
+                              {row.value}
                             </span>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p className="font-mono text-xs">{result.genomic_signature_id}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   </CardContent>
                 </Card>
               </div>
 
-              <Separator className="my-2" />
-
-              {/* Row 3: Detailed Tabs */}
-              <Card className="shadow-sm border-none ring-1 ring-border/50 bg-card/50 rounded-xl w-full">
+              {/* ROW 3: Tabs */}
+              <Card className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl shadow-sm">
                 <Tabs defaultValue="explanation" className="w-full">
-                  <div className="border-b px-6 pt-4">
-                    <TabsList className="flex flex-col h-96">
-                      <TabsTrigger value="explanation">Explanation</TabsTrigger>
-                      <TabsTrigger value="profile">Profile Details</TabsTrigger>
-                      <TabsTrigger value="tree">Explainability</TabsTrigger>
-                      <TabsTrigger value="json">Raw JSON</TabsTrigger>
+                  <div className="border-b border-white/10 px-4 pt-3">
+                    <TabsList className="bg-transparent gap-1 h-auto flex-wrap">
+                      {[
+                        { value: 'explanation', label: 'Explanation' },
+                        { value: 'profile', label: 'Profile Details' },
+                        { value: 'chain', label: 'Explainability Chain' },
+                        { value: 'json', label: 'Raw JSON' },
+                      ].map((tab) => (
+                        <TabsTrigger
+                          key={tab.value}
+                          value={tab.value}
+                          className={`rounded-lg border border-transparent data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:border-primary/30 text-muted-foreground transition-all ${isExpert ? 'text-xs py-1.5 px-3' : 'text-sm py-2 px-4'}`}
+                        >
+                          {tab.label}
+                        </TabsTrigger>
+                      ))}
                     </TabsList>
                   </div>
 
-                  <div className="p-6 min-h-[300px]">
-                    <TabsContent value="explanation" className="mt-0 focus-visible:outline-none">
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <h3 className="text-lg font-semibold flex items-center gap-2">
-                            Analysis Summary
-                          </h3>
-                          <Badge variant={mode === 'expert' ? 'default' : 'secondary'}>
-                            {mode === 'expert' ? 'Expert View' : 'Patient View'}
-                          </Badge>
-                        </div>
-                        <Card className="shadow-none border bg-muted/20 mt-6">
-                          <CardContent className="p-6 leading-relaxed text-sm text-slate-700 dark:text-slate-300">
-                            <div className="space-y-4 whitespace-pre-line">
-                              {result.llm_generated_explanation.summary}
-                            </div>
-                          </CardContent>
-                        </Card>
+                  {/* Explanation */}
+                  <TabsContent value="explanation" className="mt-0 focus-visible:outline-none">
+                    <CardContent className="p-6 space-y-4 leading-relaxed">
+                      <div className="flex items-center justify-between">
+                        <h3 className={`font-semibold ${isExpert ? 'text-sm' : 'text-lg'}`}>LLM Analysis Summary</h3>
+                        <Badge className={`text-xs ${isExpert ? 'bg-primary/20 text-primary border-primary/30' : 'bg-white/10 text-muted-foreground border-white/10'}`}>
+                          {isExpert ? 'Expert Mode' : 'Patient Mode'}
+                        </Badge>
                       </div>
-                    </TabsContent>
+                      <div className={`rounded-xl border border-white/10 bg-white/3 p-5 whitespace-pre-line ${isExpert ? 'text-xs text-muted-foreground font-mono leading-relaxed' : 'text-sm leading-loose'}`}>
+                        {result.llm_generated_explanation.summary}
+                      </div>
+                    </CardContent>
+                  </TabsContent>
 
-                    <TabsContent value="profile" className="mt-0 focus-visible:outline-none">
-                      <div className="rounded-md border overflow-hidden">
-                        <table className="w-full text-sm text-left">
-                          <thead className="bg-muted/50 text-muted-foreground font-medium border-b">
+                  {/* Profile Details */}
+                  <TabsContent value="profile" className="mt-0 focus-visible:outline-none">
+                    <CardContent className="p-6 space-y-4 leading-relaxed">
+                      <div className="rounded-xl border border-white/10 overflow-hidden">
+                        <table className="w-full text-sm">
+                          <thead className="bg-white/5 text-muted-foreground text-xs uppercase tracking-wider border-b border-white/10">
                             <tr>
-                              <th className="px-4 py-3">Attribute</th>
-                              <th className="px-4 py-3">Value</th>
-                              <th className="px-4 py-3 hidden md:table-cell">Description</th>
+                              <th className="px-4 py-3 text-left">Attribute</th>
+                              <th className="px-4 py-3 text-left">Value</th>
+                              <th className="px-4 py-3 text-left hidden md:table-cell">Notes</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y">
-                            <tr>
-                              <td className="px-4 py-3 font-medium">Gene</td>
-                              <td className="px-4 py-3 font-mono text-primary">{result.pharmacogenomic_profile.primary_gene}</td>
-                              <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">Target biomarker for {result.drug}</td>
-                            </tr>
-                            <tr>
-                              <td className="px-4 py-3 font-medium">Phenotype</td>
-                              <td className="px-4 py-3">{result.pharmacogenomic_profile.phenotype}</td>
-                              <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">Metabolizer status classification</td>
-                            </tr>
-                            <tr>
-                              <td className="px-4 py-3 font-medium">Detected Variant</td>
-                              <td className="px-4 py-3 font-mono">{result.pharmacogenomic_profile.diplotype || "N/A"}</td>
-                              <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">Specific genetic marker identified</td>
-                            </tr>
-                            <tr>
-                              <td className="px-4 py-3 font-medium">Quality Check</td>
-                              <td className={`px-4 py-3 font-medium ${result.quality_metrics.vcf_parsing_success ? 'text-emerald-600' : 'text-red-600'}`}>
-                                {result.quality_metrics.vcf_parsing_success ? 'PASS' : 'FAIL'}
-                              </td>
-                              <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">VCF integrity verified</td>
-                            </tr>
+                          <tbody className="divide-y divide-white/5">
+                            {[
+                              { attr: 'Gene', val: result.pharmacogenomic_profile.primary_gene, note: `Primary biomarker for ${result.drug}`, mono: true },
+                              { attr: 'Phenotype', val: result.pharmacogenomic_profile.phenotype, note: 'Metabolizer classification' },
+                              { attr: 'Variant', val: result.pharmacogenomic_profile.diplotype || 'N/A', note: 'Detected allele', mono: true },
+                              { attr: 'Completeness', val: result.quality_metrics.genotype_completeness, note: 'Genotype coverage' },
+                              { attr: 'VCF Quality', val: result.quality_metrics.vcf_parsing_success ? 'PASS' : 'FAIL', note: 'File integrity', pass: result.quality_metrics.vcf_parsing_success },
+                            ].map((row) => (
+                              <tr key={row.attr} className="hover:bg-white/3 transition-colors">
+                                <td className={`px-4 py-3 font-medium ${isExpert ? 'text-xs' : 'text-sm'}`}>{row.attr}</td>
+                                <td className={`px-4 py-3 ${row.mono ? 'font-mono text-primary' : ''} ${row.pass === true ? 'text-emerald-400' : row.pass === false ? 'text-red-400' : ''} ${isExpert ? 'text-xs' : 'text-sm'}`}>
+                                  {row.val}
+                                </td>
+                                <td className="px-4 py-3 text-muted-foreground text-xs hidden md:table-cell">{row.note}</td>
+                              </tr>
+                            ))}
                           </tbody>
                         </table>
                       </div>
-                    </TabsContent>
+                    </CardContent>
+                  </TabsContent>
 
-                    <TabsContent value="tree" className="mt-0 focus-visible:outline-none">
-                      <div className="rounded-lg border bg-muted/30 p-8 overflow-x-auto">
-                        <div className="flex flex-col gap-4 min-w-[300px]">
-
-                          {/* Level 1: Drug */}
-                          <div className="flex items-center gap-3 animate-in fade-in slide-in-from-left-4 duration-500 delay-100">
-                            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-md">
-                              <FlaskConical className="w-5 h-5" />
-                            </div>
-                            <div className="flex flex-col">
-                              <span className="text-xs font-bold text-muted-foreground uppercase">Drug</span>
-                              <span className="font-semibold">{result.explainability_tree.drug}</span>
-                            </div>
-                          </div>
-
-                          <div className="ml-5 border-l-2 border-muted-foreground/20 h-6"></div>
-
-                          {/* Level 2: Gene */}
-                          <div className="flex items-center gap-3 ml-8 animate-in fade-in slide-in-from-left-8 duration-500 delay-200">
-                            <div className="p-2 bg-purple-100 dark:bg-purple-900/30 text-purple-600 rounded-md">
-                              <Dna className="w-5 h-5" />
-                            </div>
-                            <div className="flex flex-col">
-                              <span className="text-xs font-bold text-muted-foreground uppercase">Gene</span>
-                              <span className="font-semibold">{result.explainability_tree.gene}</span>
-                            </div>
-                          </div>
-
-                          <div className="ml-[3.25rem] border-l-2 border-muted-foreground/20 h-6"></div>
-
-                          {/* Level 3: Variant */}
-                          <div className="flex items-center gap-3 ml-16 animate-in fade-in slide-in-from-left-12 duration-500 delay-300">
-                            <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 rounded-md">
-                              <SearchesIcon className="w-5 h-5" />
-                            </div>
-                            <div className="flex flex-col">
-                              <span className="text-xs font-bold text-muted-foreground uppercase">Biomarker</span>
-                              <span className="font-mono font-medium">{result.explainability_tree.variant}</span>
-                            </div>
-                          </div>
-
-                          <div className="ml-[5.25rem] border-l-2 border-muted-foreground/20 h-6"></div>
-
-                          {/* Level 4: Phenotype */}
-                          <div className="flex items-center gap-3 ml-24 animate-in fade-in slide-in-from-left-16 duration-500 delay-500">
-                            <div className="p-2 bg-pink-100 dark:bg-pink-900/30 text-pink-600 rounded-md">
-                              <Fingerprint className="w-5 h-5" />
-                            </div>
-                            <div className="flex flex-col">
-                              <span className="text-xs font-bold text-muted-foreground uppercase">Phenotype</span>
-                              <span className="font-medium bg-pink-50 dark:bg-pink-900/20 px-2 py-0.5 rounded text-pink-700 dark:text-pink-300">
-                                {result.explainability_tree.phenotype}
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="ml-[7.25rem] border-l-2 border-muted-foreground/20 h-6"></div>
-
-                          {/* Level 5: Risk */}
-                          <div className="flex items-center gap-3 ml-32 animate-in fade-in slide-in-from-left-20 duration-500 delay-700">
-                            <div className={`p-2 rounded-md ${result.risk_assessment.risk_label.toLowerCase().includes('high') || result.risk_assessment.risk_label.toLowerCase().includes('toxic') ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
-                              <Activity className="w-5 h-5" />
-                            </div>
-                            <div className="flex flex-col">
-                              <span className="text-xs font-bold text-muted-foreground uppercase">Outcome</span>
-                              <span className="font-bold">{result.explainability_tree.risk}</span>
-                            </div>
-                          </div>
-
+                  {/* Explainability Chain */}
+                  <TabsContent value="chain" className="mt-0 focus-visible:outline-none">
+                    <CardContent className="p-6 space-y-4 leading-relaxed">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className={`font-semibold ${isExpert ? 'text-sm' : 'text-base'}`}>Decision Chain</h3>
+                        <span className="text-xs text-muted-foreground">Causal pathway from drug → risk</span>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <ExplainabilityChain tree={result.explainability_tree} risk={result.risk_assessment.risk_label} />
+                      </div>
+                      {isExpert && (
+                        <div className="mt-4 rounded-lg border border-white/10 bg-white/3 p-4">
+                          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Recommendation</p>
+                          <p className="text-xs text-muted-foreground font-mono">{result.explainability_tree.recommendation}</p>
                         </div>
-                      </div>
-                    </TabsContent>
+                      )}
+                    </CardContent>
+                  </TabsContent>
 
-                    <TabsContent value="json" className="mt-0 focus-visible:outline-none">
-                      <div className="relative rounded-lg border bg-muted/50 p-4 font-mono text-xs overflow-auto max-h-[400px]">
-                        <pre className="whitespace-pre-wrap break-words">{JSON.stringify(result, null, 2)}</pre>
-                      </div>
-                      <div className="flex gap-4 mt-4">
-                        <Button variant="outline" className="w-full" onClick={downloadJson}>
-                          <Download className="w-4 h-4 mr-2" /> Download Report
+                  {/* Raw JSON */}
+                  <TabsContent value="json" className="mt-0 focus-visible:outline-none">
+                    <CardContent className="p-6 space-y-4 leading-relaxed">
+                      <div className="flex gap-3 mb-4">
+                        <Button variant="outline" size="sm" className="bg-white/5 border-white/10 hover:bg-white/10 gap-2 hover:scale-[1.02] transition-transform" onClick={downloadJson}>
+                          <Download className="w-3.5 h-3.5" /> Download
                         </Button>
-                        <Button variant="outline" className="w-full" onClick={copyToClipboard}>
-                          <Copy className="w-4 h-4 mr-2" /> Copy to Clipboard
+                        <Button variant="outline" size="sm" className="bg-white/5 border-white/10 hover:bg-white/10 gap-2 hover:scale-[1.02] transition-transform" onClick={copyToClipboard}>
+                          <Copy className="w-3.5 h-3.5" /> Copy
                         </Button>
                       </div>
-                    </TabsContent>
-
-                  </div>
-
+                      <div className="relative rounded-xl border border-white/10 bg-black/30 p-4 max-h-96 overflow-auto">
+                        <pre className="font-mono text-xs text-emerald-300/80 whitespace-pre-wrap break-words leading-relaxed">
+                          {JSON.stringify(result, null, 2)}
+                        </pre>
+                      </div>
+                    </CardContent>
+                  </TabsContent>
                 </Tabs>
               </Card>
-
             </div>
           )}
         </main>
-      </TooltipProvider>
-    </div>
-  );
-}
 
-// Icon helper for the tree
-function SearchesIcon(props: any) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="11" cy="11" r="8" />
-      <path d="m21 21-4.3-4.3" />
-    </svg>
-  )
+        {/* Footer */}
+        <footer className="mt-16 border-t border-white/10 py-6 text-center text-xs text-muted-foreground">
+          PharmaGuard · RIFT 2026 · Pharmacogenomic Risk Prediction
+        </footer>
+      </div>
+    </TooltipProvider>
+  );
 }
