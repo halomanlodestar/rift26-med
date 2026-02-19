@@ -391,7 +391,7 @@ export default function Home() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `pharmaguard_${result.patient_id.slice(0, 8)}.json`;
+    a.download = `we_sure_${result.patient_id.slice(0, 8)}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -424,7 +424,7 @@ export default function Home() {
               </div>
               <div>
                 <div className="text-base font-bold tracking-tight leading-none">
-                  PharmaGuard
+                  WeSure
                 </div>
                 <div className="text-[10px] text-muted-foreground uppercase tracking-widest hidden sm:block">
                   Pharmacogenomic AI
@@ -1031,7 +1031,7 @@ export default function Home() {
 
         {/* Footer */}
         <footer className="mt-16 border-t border-white/10 py-6 text-center text-xs text-muted-foreground">
-          PharmaGuard · RIFT 2026 · Pharmacogenomic Risk Prediction
+          WeSure · RIFT 2026 · Pharmacogenomic Risk Prediction
         </footer>
       </div>
     </TooltipProvider>

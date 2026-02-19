@@ -1,6 +1,6 @@
 <!-- @format -->
 
-# Rift26 — Pharmacogenomics Analysis Platform
+# WeSure — Pharmacogenomics Analysis Platform
 
 > AI-powered VCF variant analysis for personalized drug-gene interaction insights.
 
@@ -11,7 +11,7 @@
 
 ## Table of Contents
 
-- [Rift26 — Pharmacogenomics Analysis Platform](#rift26--pharmacogenomics-analysis-platform)
+- [WeSure — Pharmacogenomics Analysis Platform](#wesure--pharmacogenomics-analysis-platform)
   - [Table of Contents](#table-of-contents)
   - [Overview](#overview)
   - [Live Demo](#live-demo)
@@ -39,7 +39,7 @@
 
 ## Overview
 
-**Rift26** is a clinical pharmacogenomics platform that analyzes a patient's genetic variants (provided as a `.vcf` file) and predicts how their genome affects drug metabolism. Results are expressed as risk levels, clinical recommendations, and AI-generated explanations in both **patient-friendly** and **expert/clinical** language.
+**WeSure** is a clinical pharmacogenomics platform that analyzes a patient's genetic variants (provided as a `.vcf` file) and predicts how their genome affects drug metabolism. Results are expressed as risk levels, clinical recommendations, and AI-generated explanations in both **patient-friendly** and **expert/clinical** language.
 
 Key capabilities:
 
