@@ -1,0 +1,109 @@
+{
+    "CODEINE": {
+        "PM": {
+            "risk_label": "Toxic",
+            "severity": "high",
+            "recommendation": "Avoid codeine. Use alternative analgesic (e.g., morphine or non-opioid). Risk of efficacy failure."
+        },
+        "UM": {
+            "risk_label": "Toxic (Overdose)",
+            "severity": "critical",
+            "recommendation": "Avoid codeine. Risk of rapid conversion to morphine leading to toxicity."
+        },
+        "IM": {
+            "risk_label": "Caution",
+            "severity": "medium",
+            "recommendation": "Monitor closely or consider alternative. Reduced efficacy possible."
+        },
+        "NM": {
+            "risk_label": "Normal",
+            "severity": "low",
+            "recommendation": "Use standard dosing."
+        }
+    },
+    "CLOPIDOGREL": {
+        "PM": {
+            "risk_label": "Efficacy Failure",
+            "severity": "high",
+            "recommendation": "Avoid clopidogrel. Use alternative antiplatelet (e.g., prasugrel, ticagrelor)."
+        },
+        "IM": {
+            "risk_label": "Reduced Efficacy",
+            "severity": "medium",
+            "recommendation": "Consider alternative antiplatelet or higher dose if appropriate."
+        },
+        "NM": {
+            "risk_label": "Normal",
+            "severity": "low",
+            "recommendation": "Use standard dosing."
+        },
+        "UM": {
+            "risk_label": "Normal/Enhanced",
+            "severity": "low",
+            "recommendation": "Use standard dosing."
+        }
+    },
+    "WARFARIN": {
+        "PM": {
+            "risk_label": "Sensitivity",
+            "severity": "high",
+            "recommendation": "Start with lower dose. Monitor INR frequently."
+        },
+        "IM": {
+            "risk_label": "Sensitivity",
+            "severity": "medium",
+            "recommendation": "Start with lower dose. Monitor INR."
+        },
+        "NM": {
+            "risk_label": "Normal",
+            "severity": "low",
+            "recommendation": "Use standard dosing algorithm."
+        }
+    },
+    "SIMVASTATIN": {
+        "LF": {
+            "risk_label": "Myopathy Risk",
+            "severity": "high",
+            "recommendation": "Prescribe lower dose or consider alternative statin (e.g. rosuvastatin)."
+        },
+        "NF": {
+            "risk_label": "Normal",
+            "severity": "low",
+            "recommendation": "Use standard dosing."
+        }
+    },
+    "AZATHIOPRINE": {
+        "PM": {
+            "risk_label": "Severe Toxicity",
+            "severity": "critical",
+            "recommendation": "Avoid azathioprine/6-MP or drastically reduce dose (10x reduction). Fatal myelosuppression risk."
+        },
+        "IM": {
+            "risk_label": "Toxic Risk",
+            "severity": "medium",
+            "recommendation": "Start with reduced dose (30-70% of normal). Monitor CBC."
+        },
+        "NM": {
+            "risk_label": "Normal",
+            "severity": "low",
+            "recommendation": "Use standard dosing."
+        }
+    },
+    "FLUOROURACIL": {
+        "PM": {
+            "risk_label": "Severe Toxicity",
+            "severity": "critical",
+            "recommendation": "Avoid 5-FU/capecitabine. Use alternative."
+        },
+        "IM": {
+            "risk_label": "Toxic Risk",
+            "severity": "high",
+            "recommendation": "Reduce dose by 50%. Monitor."
+        },
+        "NM": {
+            "risk_label": "Normal",
+            "severity": "low",
+            "recommendation": "Use standard dosing."
+        }
+    }
+}

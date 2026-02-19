@@ -4,5 +4,9 @@
     "activityBar.background": "#5B0C28",
     "titleBar.activeBackground": "#801138",
     "titleBar.activeForeground": "#FFFCFD"
+  },
+  "css.lint.unknownAtRules": "ignore",
+  "files.associations": {
+    "*.css": "tailwindcss"
   }
 }
