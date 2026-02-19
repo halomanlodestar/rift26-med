@@ -2,8 +2,8 @@
   "name": "rift26",
   "private": true,
   "workspaces": [
-    "apps/*",
-    "packages/*"
+    "backend",
+    "frontend"
   ],
   "scripts": {
     "web": "bun --cwd ./frontend dev"
