@@ -1,7 +1,7 @@
-/** @format */
+import { ComponentExample } from "@/components/component-example";
 
-function App() {
-  return <></>;
+export function App() {
+return <ComponentExample />;
 }
 
 export default App;
