@@ -15,7 +15,6 @@ import {
   Copy,
   FlaskConical,
   ChevronRight,
-  Zap,
   Beaker,
 } from "lucide-react";
 
@@ -644,11 +643,6 @@ export default function Home() {
                         {result.timestamp.split("T")[0]}
                       </Badge>
                       <div className="flex items-center gap-2">
-                        {result.cache_status === "HIT" && (
-                          <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-xs gap-1">
-                            <Zap className="w-3 h-3" /> Cached
-                          </Badge>
-                        )}
                         <Badge className={`text-xs border ${riskCfg!.badge}`}>
                           {riskCfg!.label}
                         </Badge>
