@@ -6,7 +6,8 @@
     "frontend"
   ],
   "scripts": {
-    "web": "bun --cwd ./frontend dev"
+    "web": "bun --cwd ./frontend dev",
+    "server": "bun --cwd ./backend dev"
   },
   "devDependencies": {
     "@types/bun": "latest"
