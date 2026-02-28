@@ -6,7 +6,7 @@ import analyzeRouter from "./routes/analyze.route";
 import cors from "cors";
 
 const app = express();
-// will now my git bug will get fixed and i can push my code to github without any issues try 2
+
 // Middleware
 app.use(express.json());
 app.use(
